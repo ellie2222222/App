@@ -5,15 +5,16 @@ import getLoggers from "../utils/logger";
 dotenv.config();
 
 const logger = getLoggers("MONGOOSE");
-const URI: string = process.env.DATABASE_URI || "mongodb+srv://tamlqhse182931:<db_password>@app.3ujlt.mongodb.net/";
+const URI: string = process.env.DATABASE_URI || "mongodb+srv://tamlqhse182931:1q4QH9OtGaVzlAqk@app.3ujlt.mongodb.net/";
 const DBName: string = process.env.DATABASE_NAME || "App";
 
 class Database {
   private session: ClientSession | null = null;
 
   constructor() {
+    this.session = null;
     this.connect().catch((error) => {
-      logger.error("Database connection error during constructor:", error.message);
+      logger.error(`Database connection error during constructor: ${error.message}`);
     });
   }
 
@@ -23,7 +24,7 @@ class Database {
       await mongoose.connect(URI, { dbName: DBName });
       logger.info(`Successfully connected to the database ${DBName}`);
     } catch (error: any) {
-      logger.error("Database connection error:", error.message);
+      logger.error(`Database connection error: ${error.message}`);
       throw new Error(error.message);
     }
   }

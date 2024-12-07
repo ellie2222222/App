@@ -4,14 +4,17 @@ import UserRepository from "../repositories/UserRepository";
 import bcrypt from "bcrypt";
 import CustomException from "../exceptions/CustomException";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
+import Database from "../utils/database";
 
 dotenv.config();
 
 class AuthService {
   private userRepository: UserRepository;
+  private database: Database;
 
   constructor() {
     this.userRepository = new UserRepository();
+    this.database = new Database();
   }
 
   /**
@@ -30,7 +33,7 @@ class AuthService {
   };
 
   /**
-   * Logs in a user by verifying credentials and generating an access token.
+   * Logs in a user and generates an access token.
    *
    * @param email - The user's email address.
    * @param password - The user's password.
@@ -59,33 +62,44 @@ class AuthService {
     }
   };
 
+  /**
+   * Signs up a user and generates an access token.
+   *
+   * @param name - The user's name.
+   * @param email - The user's email address.
+   * @param password - The user's password.
+   * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
+   */
   signup = async (name: string, email: string, password: string): Promise<string> => {
+    const session = await this.database.startTransaction();
     try {
       const existingUser = await this.userRepository.getUserByEmail(email);
-    
+
       if (existingUser) {
         throw new CustomException(StatusCodeEnum.Conflict_409, "Email already exists");
       }
-    
+
       const saltRounds = 10;
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(password, salt);
-    
+
       const newUser = await this.userRepository.createUser({
         name,
         email,
         password: hashedPassword,
-      });
-    
+      }, session);
+
       const payload = { userId: newUser._id, email: newUser.email };
       const token = this.generateAccessToken(payload);
-    
+
+      await this.database.commitTransaction();
+
       return token;
     } catch (error) {
+      await this.database.abortTransaction();
       throw error;
     }
   };
-  
 }
 
 export default AuthService;

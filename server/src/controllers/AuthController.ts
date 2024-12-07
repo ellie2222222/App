@@ -13,14 +13,14 @@ class AuthController {
     try {
       const { email, password } = req.body;
 
-      const token = this.authService.login(email, password);
+      const accessToken = await this.authService.login(email, password);
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Success",
-        token,
+        accessToken,
       });
     } catch (error) {
-      next(error);
+      // next(error);
       res.status(500).json({ message: "Internal Server Error" });
     }
   };
@@ -29,15 +29,15 @@ class AuthController {
     try {
       const { name, email, password } = req.body;
 
-      const token = this.authService.signup(name, email, password);
+      const accessToken = this.authService.signup(name, email, password);
 
       res.status(StatusCodeEnum.Created_201).json({
         message: "Success",
-        token,
+        accessToken,
       });
     } catch (error) {
-      next(error);
-      res.status(500).json({ message: "Internal Server Error" });
+      // next(error);
+      res.status(StatusCodeEnum.InternalServerError_500).json({ message: "Internal Server Error" });
     }
   };
 }

@@ -10,7 +10,7 @@ class UserRepository {
   ): Promise<IUser> {
     try {
       const user = await UserModel.create([{ ...data }], { session });
-
+      
       return user[0];
     } catch (error: any) {
       throw new Error(`Error when creating user: ${error.message}`);
