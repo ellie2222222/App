@@ -18,19 +18,76 @@ class AuthService {
   }
 
   /**
-   * Generates a JSON Web Token.
+   * Generates an Access Token.
    *
    * @param attributes - The payload attributes to include in the token.
    * @returns The signed JWT as a string.
    */
   generateAccessToken = (attributes: Object): string => {
-    const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET || "secret";
-    const accessTokenExpiration: string = process.env.ACCESS_TOKEN_EXPIRATION || "1d";
+    try {
+      const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET || "access_token_secret";
+      const accessTokenExpiration: string = process.env.ACCESS_TOKEN_EXPIRATION || "1d";
 
-    return jwt.sign(attributes, accessTokenSecret, {
-      expiresIn: accessTokenExpiration,
-    });
+      return jwt.sign(attributes, accessTokenSecret, {
+        expiresIn: accessTokenExpiration,
+      });
+    } catch (error) {
+      throw error;
+    }
   };
+
+  /**
+   * Generates a Refresh Token.
+   *
+   * @param attributes - The payload attributes to include in the token.
+   * @returns The signed JWT as a string.
+   */
+  generateRefreshToken = (attributes: Object): string => {
+    try {
+      const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET || "refresh_token_secret";
+      const refreshTokenExpiration: string = process.env.REFRESH_TOKEN_EXPIRATION || "30d";
+
+      return jwt.sign(attributes, refreshTokenSecret, {
+        expiresIn: refreshTokenExpiration,
+      });
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Refresh an Access Token.
+   *
+   * @param refreshToken - The refresh token string.
+   * @returns A promise that resolves to the new JWT Access Token.
+   */
+  refreshAccessToken = async (refreshToken: string): Promise<string> => {
+    try {
+      const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET || "refresh_token_secret";
+  
+      // Verify the refresh token
+      const payload = jwt.verify(refreshToken, refreshTokenSecret);
+  
+      if (typeof payload === "object" && payload.userId) {
+        const user = await this.userRepository.getUserById(payload.userId);
+  
+        if (!user) {
+          throw new CustomException(StatusCodeEnum.Unauthorized_401, "User not found");
+        }
+  
+        return this.generateAccessToken({ userId: payload.userId, email: user.email });
+      }
+  
+      throw new CustomException(StatusCodeEnum.Unauthorized_401, "Invalid refresh token payload");
+    } catch (error: any) {
+      if (error.name === "TokenExpiredError") {
+        throw new CustomException(StatusCodeEnum.Unauthorized_401, "Token expired");
+      } else if (error.name === "JsonWebTokenError") {
+        throw new CustomException(StatusCodeEnum.Unauthorized_401, "Invalid refresh token");
+      }
+      throw error;
+    }
+  };  
 
   /**
    * Logs in a user and generates an access token.
@@ -39,24 +96,28 @@ class AuthService {
    * @param password - The user's password.
    * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
    */
-  login = async (email: string, password: string): Promise<string> => {
+  login = async (email: string, password: string): Promise<{ accessToken: string; refreshToken: string }> => {
     try {
       const user = await this.userRepository.getUserByEmail(email);
 
       if (!user) {
-        throw new CustomException(StatusCodeEnum.Conflict_409, "Email already exist");
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
 
-      if (!isPasswordValid) {
+      if (!user || !isPasswordValid) {
         throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
       }
 
       const payload = { userId: user._id, email: user.email };
-      const token = this.generateAccessToken(payload);
+      const accessToken = this.generateAccessToken(payload);
+      const refreshToken = this.generateRefreshToken(payload);
 
-      return token;
+      return {
+        accessToken,
+        refreshToken,
+      };
     } catch (error) {
       throw error;
     }
@@ -70,7 +131,7 @@ class AuthService {
    * @param password - The user's password.
    * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
    */
-  signup = async (name: string, email: string, password: string): Promise<string> => {
+  signup = async (name: string, email: string, password: string): Promise<void> => {
     const session = await this.database.startTransaction();
     try {
       const existingUser = await this.userRepository.getUserByEmail(email);
@@ -83,18 +144,13 @@ class AuthService {
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      const newUser = await this.userRepository.createUser({
+      await this.userRepository.createUser({
         name,
         email,
         password: hashedPassword,
       }, session);
 
-      const payload = { userId: newUser._id, email: newUser.email };
-      const token = this.generateAccessToken(payload);
-
       await this.database.commitTransaction();
-
-      return token;
     } catch (error) {
       await this.database.abortTransaction();
       throw error;

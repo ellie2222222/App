@@ -9,4 +9,6 @@ authRoutes.post("/login", authController.login);
 
 authRoutes.post("/signup", authController.signup);
 
+authRoutes.post("/refresh-token", authController.refreshAccessToken);
+
 export default authRoutes;

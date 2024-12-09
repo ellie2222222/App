@@ -3,6 +3,7 @@ dotenv.config();
 import express, { Request, Response, NextFunction, Application } from "express";
 import http from "http";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { Server as SocketIO } from "socket.io";
 import getLogger from "./utils/logger";
 import limiter from "./middlewares/rateLimiter";
@@ -40,6 +41,7 @@ app.use("/", express.static(__dirname));
 app.use(limiter(15, 100000));
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
 // Log API requests
