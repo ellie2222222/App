@@ -1,21 +1,22 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
-import Header from './Header';
-import Footer from './Footer';
+import React from "react";
+import { Outlet } from "react-router-dom";
+import Header from "./Header";
+import Footer from "./Footer";
 
 const MainLayout: React.FC = () => {
   return (
-    <div>
-      {/* Header */}
-      <Header />
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <header>
+        <Header />
+      </header>
 
-      {/* Main content area - where child components will be rendered */}
       <main>
-        <Outlet />  {/* Renders the child route components like HomePage, AboutPage */}
+        <Outlet />
       </main>
 
-      {/* Footer */}
-      <Footer />
+      <footer>
+        <Footer />
+      </footer>
     </div>
   );
 };
