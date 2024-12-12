@@ -16,12 +16,15 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
-import { useTheme } from "@mui/material";
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import { useTheme } from "../../../contexts/ThemeContext";
+import './index.scss';
 
 const Header: React.FC = () => {
   const navItems = ["Home", "About", "Contact"];
   const userSettings = ["Profile", "Account", "Dashboard", "Logout"];
-  const theme = useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   const HeaderComponent = () => {
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,7 +61,7 @@ const Header: React.FC = () => {
     );
 
     return (
-      <Box sx={{ display: "flex" }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         {/* Drawer */}
         <Drawer
           anchor="left"
@@ -69,48 +72,59 @@ const Header: React.FC = () => {
           }}
           sx={{
             display: { xs: "block", sm: "none" },
-            "& .MuiDrawer-paper": { boxSizing: "border-box", width: 240 },
+            "& .MuiDrawer-paper": { 
+              boxSizing: "border-box", 
+              width: 240, 
+              backgroundColor: theme.palette.background.default ,
+              color: theme.palette.text.primary
+            },
           }}
         >
           {drawer}
         </Drawer>
 
         {/* AppBar */}
-        <AppBar position="sticky" style={{ backgroundColor: theme.palette.background.default }}>
-          <Toolbar>
+        <AppBar position="sticky" sx={{ backgroundColor: theme.palette.background.default }}>
+          <Toolbar sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+            {/* Drawer Toggle (Mobile) */}
             <IconButton
-              color="inherit"
               aria-label="open drawer"
               edge="start"
               onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { sm: "none" } }}
+              sx={{ mr: 2, display: { sm: "none" }, color: theme.palette.text.primary }}
             >
               <MenuIcon />
             </IconButton>
-
+            
             <Typography
               variant="h6"
               sx={{
-                display: { xs: "none", sm: "block" },
+                display: { xs: "none", sm: "block", color: theme.palette.text.primary },
               }}
             >
               MUI
             </Typography>
 
-            {/* Navigation for larger screens */}
-            <Box sx={{ display: { xs: "none", sm: "block", flexGrow: 1 } }}>
+            {/* Navigation in the center */}
+            <Box sx={{ display: "flex", flexGrow: 1, justifyContent: "center" }}>
               {navItems.map((item) => (
-                <Button key={item} sx={{ color: "#fff" }}>
+                <Button key={item} sx={{ color: theme.palette.text.primary, marginX: 2 }}>
                   {item}
                 </Button>
               ))}
             </Box>
 
-            {/* User Menu */}
-            <Box sx={{ flexGrow: 0 }}>
+            {/* Dark/Light Mode and User Menu on the right */}
+            <Box sx={{ display: "flex", ml: "auto" }}>
+              {/* Dark/Light Mode Button */}
+              <Button sx={{ color: theme.palette.text.primary }} onClick={toggleTheme}>
+                {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </Button>
+
+              {/* User Menu */}
               <Tooltip title="Open settings">
                 <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
-                  <Avatar alt="User Avatar" src="/static/images/avatar/2.jpg" />
+                  <Avatar alt="User Avatar" src="/static/images/avatar/2.jpg" sx={{ backgroundColor: theme.palette.text.primary }} />
                 </IconButton>
               </Tooltip>
               <Menu
@@ -120,9 +134,10 @@ const Header: React.FC = () => {
                 transformOrigin={{ vertical: "top", horizontal: "right" }}
                 open={Boolean(anchorElUser)}
                 onClose={handleCloseUserMenu}
+                sx={{ ".MuiMenu-paper": { backgroundColor: theme.palette.background.default }}}
               >
                 {userSettings.map((setting) => (
-                  <MenuItem key={setting} onClick={handleCloseUserMenu}>
+                  <MenuItem key={setting} onClick={handleCloseUserMenu} sx={{ color: theme.palette.text.primary }}>
                     <Typography textAlign="center">{setting}</Typography>
                   </MenuItem>
                 ))}

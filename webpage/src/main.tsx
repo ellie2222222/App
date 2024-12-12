@@ -3,15 +3,13 @@ import App from "./App.tsx";
 import { Provider } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 import { persistor, store } from "./store/store.ts";
-
-import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import theme from "./theme";
+import { ThemeProvider } from "./contexts/ThemeContext.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
     <PersistGate persistor={persistor}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider>
         <CssBaseline /> {/* Normalize default browser styles */}
         <App />
       </ThemeProvider>
