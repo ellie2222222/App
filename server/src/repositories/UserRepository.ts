@@ -49,7 +49,7 @@ class UserRepository {
    */
   async getUserByEmail(email: string): Promise<IUser | null> {
     try {
-      const user = await UserModel.findOne({ email });
+      const user = await UserModel.findOne({ email: { $eq: email } });
       return user;
     } catch (error: any) {
       throw new Error(`Error when finding user by email: ${error.message}`);
