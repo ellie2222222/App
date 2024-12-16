@@ -1,9 +1,9 @@
 class CustomException extends Error {
-  public errorCode: number;
+  public code: number;
 
-  constructor(errorCode: number, message: string) {
+  constructor(code: number, message: string) {
     super(message);
-    this.errorCode = errorCode;
+    this.code = code;
     Error.captureStackTrace(this, this.constructor);
   }
 }

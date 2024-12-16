@@ -18,7 +18,7 @@ const userModelSchema = new Schema<IUser>({
   },
   googleId: {
     type: String,
-    default: "",
+    default: null,
     unique: true,
   },
   appleUser: {
@@ -36,7 +36,7 @@ const userModelSchema = new Schema<IUser>({
   },
   phoneNumber: {
     type: String,
-    default: "",
+    default: null,
     unique: true,
   },
   password: {

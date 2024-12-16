@@ -5,18 +5,13 @@ import StatusCodeEnums from "../enums/StatusCodeEnum";
 import Database from "../utils/database";
 import { ClientSession } from "mongoose";
 import ErrorLogRepository from "../repositories/ErrorLogRepository";
+import CustomException from "../exceptions/CustomException";
 
 // Get logger instance for error logging
 const logger = getLogger("ERROR_LOG");
 
-// Custom error interface to allow code and stack properties
-interface CustomError extends Error {
-  code?: number;
-  stack?: string;
-}
-
 const errorLog = async (
-  err: CustomError,
+  err: CustomException,
   req: Request,
   res: Response,
   next: NextFunction
@@ -40,40 +35,38 @@ const errorLog = async (
   // Log the error details
   logger.error(logMessage);
 
-  const database = new Database();
-  try {
-    const errorLogData = {
-      errorCode: err.code?.toString() || "500",
-      message: err.message,
-      file: fileName,
-      stackTrace: stack,
-      isDeleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+  // Only log specific error codes to the database
+  const errorCodes = [StatusCodeEnums.InternalServerError_500, StatusCodeEnums.Unauthorized_401, StatusCodeEnums.Forbidden_403];
+  if (errorCodes.includes(err.code)) {
+    const database = new Database();
+    try {
+      const errorLogData = {
+        errorCode: err.code?.toString() || "500",
+        message: err.message,
+        file: fileName,
+        stackTrace: stack,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    const session: ClientSession = await database.startTransaction();
-    const errorLogRepository = new ErrorLogRepository();
-    await errorLogRepository.createErrorLog(errorLogData, session);
-    await database.commitTransaction();
+      const session: ClientSession = await database.startTransaction();
+      const errorLogRepository = new ErrorLogRepository();
+      await errorLogRepository.createErrorLog(errorLogData, session);
+      await database.commitTransaction();
 
-    logger.info(`Error Log saved to database`);
-  } catch (error: any) {
-    await database.abortTransaction();
-    logger.error(`Error saving error to database: ${error.message}`);
-  } finally {
-    if (err.name && err.name.toLowerCase().includes("mongo")) {
-      res
-        .status(StatusCodeEnums.InternalServerError_500)
-        .json({ message: `Database Error: ${err.message}` });
+      logger.info(`Error Log saved to database`);
+    } catch (error: any) {
+      await database.abortTransaction();
+      logger.error(`Error saving error to database: ${error.message}`);
     }
-
-    const statusCode = Object.values(StatusCodeEnums).includes(err.code || 0)
-      ? err.code || StatusCodeEnums.InternalServerError_500
-      : StatusCodeEnums.InternalServerError_500;
-
-    res.status(statusCode).json({ message: err.message });
   }
+
+  const statusCode = Object.values(StatusCodeEnums).includes(err.code || 0)
+    ? err.code || StatusCodeEnums.InternalServerError_500
+    : StatusCodeEnums.InternalServerError_500;
+
+  res.status(statusCode).json({ message: err.message });
 };
 
 export default errorLog;

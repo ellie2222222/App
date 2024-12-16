@@ -75,7 +75,13 @@ class AuthService {
           throw new CustomException(StatusCodeEnum.Unauthorized_401, "User not found");
         }
   
-        return this.generateAccessToken({ userId: payload.userId, email: user.email });
+        const timestamp = new Date().toISOString();
+        const newPayload = { 
+          userId: user._id, 
+          email: user.email,
+          timestamp,
+        };
+        return this.generateAccessToken(newPayload);
       }
   
       throw new CustomException(StatusCodeEnum.Unauthorized_401, "Invalid refresh token payload");
@@ -110,7 +116,12 @@ class AuthService {
         throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
       }
 
-      const payload = { userId: user._id, email: user.email };
+      const timestamp = new Date().toISOString();
+      const payload = { 
+        userId: user._id, 
+        email: user.email,
+        timestamp,
+      };
       const accessToken = this.generateAccessToken(payload);
       const refreshToken = this.generateRefreshToken(payload);
 

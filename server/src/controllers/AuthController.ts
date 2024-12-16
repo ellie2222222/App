@@ -27,7 +27,9 @@ class AuthController {
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Login successful",
-        accessToken
+        data: { 
+          accessToken
+        }
       });
     } catch (error) {
       next(error);
@@ -62,7 +64,9 @@ class AuthController {
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Success",
-        accessToken: newAccessToken,
+        data: { 
+          accessToken: newAccessToken
+        }
       });
     } catch (error) {
       next(error);
