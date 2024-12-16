@@ -25,8 +25,8 @@ class AuthService {
    */
   generateAccessToken = (attributes: Object): string => {
     try {
-      const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET || "access_token_secret";
-      const accessTokenExpiration: string = process.env.ACCESS_TOKEN_EXPIRATION || "1d";
+      const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET!;
+      const accessTokenExpiration: string = process.env.ACCESS_TOKEN_EXPIRATION!;
 
       return jwt.sign(attributes, accessTokenSecret, {
         expiresIn: accessTokenExpiration,
@@ -44,8 +44,8 @@ class AuthService {
    */
   generateRefreshToken = (attributes: Object): string => {
     try {
-      const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET || "refresh_token_secret";
-      const refreshTokenExpiration: string = process.env.REFRESH_TOKEN_EXPIRATION || "30d";
+      const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET!;
+      const refreshTokenExpiration: string = process.env.REFRESH_TOKEN_EXPIRATION!;
 
       return jwt.sign(attributes, refreshTokenSecret, {
         expiresIn: refreshTokenExpiration,
@@ -63,7 +63,7 @@ class AuthService {
    */
   refreshAccessToken = async (refreshToken: string): Promise<string> => {
     try {
-      const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET || "refresh_token_secret";
+      const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET!;
   
       // Verify the refresh token
       const payload = jwt.verify(refreshToken, refreshTokenSecret);
