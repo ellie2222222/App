@@ -5,6 +5,7 @@ import { match } from "path-to-regexp";
 import publicRoutes from "../routes/PublicRoute";
 import getLogger from "../utils/logger";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
+import { UAParser } from "ua-parser-js";
 
 const logger = getLogger("AUTHENTICATION");
 
@@ -13,17 +14,16 @@ interface JwtPayload {
   ip: string;
 }
 
-const isUnprotectedRoute = (path: string, method: string): boolean => {
+const isPublicRoute = (path: string, method: string): boolean => {
   const pathname = path.split("?")[0];
 
   const matchedRoute = publicRoutes.find((route) => {
     const matchFn = match(route.path, { decode: decodeURIComponent });
     const matched = matchFn(pathname);
-    matched && route.method === method && matched.path === pathname;
+    return matched && route.method === method;
   });
 
-  if (matchedRoute) return true;
-  return false;
+  return !!matchedRoute;
 };
 
 const AuthMiddleware = async (
@@ -31,19 +31,54 @@ const AuthMiddleware = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const isUnprotected = isUnprotectedRoute(req.originalUrl, req.method);
+  // Attach information to req for further process
+  const ipAddress =
+    typeof req.headers["x-forwarded-for"] === "string"
+      ? req.headers["x-forwarded-for"].split(",")[0]
+      : req.socket.remoteAddress;
+  const userAgent: string = req.headers["user-agent"]!;
+
+  const parser = new UAParser();
+  const parsedDevice = parser.setUA(userAgent).getResult();
+
+  const userAgentData = parsedDevice.ua;
+  const browserData = {
+    name: parsedDevice.browser.name || "Unknown",
+    version: parsedDevice.browser.version || "Unknown",
+  };
+  const osData = {
+    name: parsedDevice.os.name || "Unknown",
+    version: parsedDevice.os.version || "Unknown",
+  };
+  const deviceData = {
+    type: parsedDevice.device.type || "Unknown",
+    model: parsedDevice.device.model || "Unknown",
+    vendor: parsedDevice.device.vendor || "Unknown",
+  };
+
+  req.body.middleware = {
+    ...req.body.middleware,
+    ipAddress,
+    userAgent: userAgentData,
+    browser: browserData,
+    os: osData,
+    device: deviceData,
+  };
+
+  // Handle public route
+  const isPublic = isPublicRoute(req.originalUrl, req.method);
   const { authorization } = req.headers;
 
-  if (isUnprotected && authorization) {
+  if (isPublic) {
     try {
-      const token = authorization.split(" ")[1];
+      const token = authorization?.split(" ")[1] || "";
       const { userId } = jwt.verify(
         token,
         process.env.ACCESS_TOKEN_SECRET!
       ) as JwtPayload;
 
       if (mongoose.Types.ObjectId.isValid(userId)) {
-        req.body.requesterId = userId;
+        req.body.middleware.userId = userId;
         logger.info(`Valid token for User ID: ${userId}`);
       } else {
         logger.warn("Invalid user ID in token.");
@@ -59,10 +94,10 @@ const AuthMiddleware = async (
     }
 
     next();
+    return;
   }
 
-  const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-
+  // Handle protected route
   if (!authorization) {
     res
       .status(StatusCodeEnum.Unauthorized_401)
@@ -82,7 +117,11 @@ const AuthMiddleware = async (
           .json({ message: "Invalid token. Request is not authorized." });
       }
 
-      req.body.requesterId = userId;
+      // Attach information to req for further process
+      req.body.middleware = {
+        ...req.body.middleware,
+        userId,
+      };
 
       next();
     } catch (error: any) {

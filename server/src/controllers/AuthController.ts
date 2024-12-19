@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import AuthService from "../services/AuthService";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
+import ms from "ms";
 
 class AuthController {
   private authService: AuthService;
@@ -15,14 +16,17 @@ class AuthController {
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email, password } = req.body;
+      const middlewareData = req.body.middleware;
 
-      const { accessToken, refreshToken } = await this.authService.login(email, password);
+      const { accessToken, refreshToken } = await this.authService.login(email, password, middlewareData);
 
+      const REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION!;
+      const refreshTokenMaxAge = ms(REFRESH_TOKEN_EXPIRATION);
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: refreshTokenMaxAge,
       });
 
       res.status(StatusCodeEnum.OK_200).json({
@@ -56,11 +60,11 @@ class AuthController {
   /**
    * Handles refreshing of an access token.
    */
-  refreshAccessToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  renewAccessToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { refreshToken } = req.body;
 
-      const newAccessToken = await this.authService.refreshAccessToken(refreshToken);
+      const newAccessToken = await this.authService.renewAccessToken(refreshToken);
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Success",

@@ -9,7 +9,7 @@ import getLogger from "./utils/logger";
 import limiter from "./middlewares/rateLimiter";
 import socket from "./socket/socket";
 import authRoutes from "./routes/AuthRoute";
-import errorLog from "./middlewares/ErrorLogMiddleware";
+import ErrorLogMiddleware from "./middlewares/ErrorLogMiddleware";
 
 process.env.TZ = "Asia/Ho_Chi_Minh";
 
@@ -65,7 +65,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Routers
 app.use("/api/auth", authRoutes);
 
-app.use(errorLog);
+app.use(ErrorLogMiddleware);
 
 // Start server
 const port: number = Number(process.env.DEVELOPMENT_PORT) || 4000;

@@ -8,6 +8,11 @@ interface PublicRoutes {
 }
 
 const publicRoutes: PublicRoutes[] = [
+  // Auth
+  { path: '/api/auth/login', method: 'POST' },
+  { path: '/api/auth/signup', method: 'POST' },
+
+  // User
   { path: '/api/users', method: 'GET' },
 ];
 

@@ -5,15 +5,21 @@ import bcrypt from "bcrypt";
 import CustomException from "../exceptions/CustomException";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
 import Database from "../utils/database";
+import SessionService from "./SessionService";
+import { ISession } from "../models/interfaces/Session/ISession";
+import { IUser } from "../models/interfaces/User/IUser";
+import { Schema } from "mongoose";
 
 dotenv.config();
 
 class AuthService {
   private userRepository: UserRepository;
+  private sessionService: SessionService;
   private database: Database;
 
   constructor() {
     this.userRepository = new UserRepository();
+    this.sessionService = new SessionService();
     this.database = new Database();
   }
 
@@ -56,44 +62,57 @@ class AuthService {
   };
 
   /**
-   * Refresh an Access Token.
+   * Renew an Access Token.
    *
    * @param refreshToken - The refresh token string.
    * @returns A promise that resolves to the new JWT Access Token.
    */
-  refreshAccessToken = async (refreshToken: string): Promise<string> => {
+  renewAccessToken = async (refreshToken: string): Promise<string> => {
     try {
       const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET!;
-  
+
       // Verify the refresh token
       const payload = jwt.verify(refreshToken, refreshTokenSecret);
-  
+
       if (typeof payload === "object" && payload.userId) {
         const user = await this.userRepository.getUserById(payload.userId);
-  
+
         if (!user) {
-          throw new CustomException(StatusCodeEnum.Unauthorized_401, "User not found");
+          throw new CustomException(
+            StatusCodeEnum.Unauthorized_401,
+            "User not found"
+          );
         }
-  
+
         const timestamp = new Date().toISOString();
-        const newPayload = { 
-          userId: user._id, 
-          email: user.email,
+        const newPayload = {
+          userId: user._id,
+          name: user.name,
+          role: user.role,
           timestamp,
         };
         return this.generateAccessToken(newPayload);
       }
-  
-      throw new CustomException(StatusCodeEnum.Unauthorized_401, "Invalid refresh token payload");
+
+      throw new CustomException(
+        StatusCodeEnum.Unauthorized_401,
+        "Invalid refresh token payload"
+      );
     } catch (error: any) {
       if (error.name === "TokenExpiredError") {
-        throw new CustomException(StatusCodeEnum.Unauthorized_401, "Token expired");
+        throw new CustomException(
+          StatusCodeEnum.Unauthorized_401,
+          "Token expired"
+        );
       } else if (error.name === "JsonWebTokenError") {
-        throw new CustomException(StatusCodeEnum.Unauthorized_401, "Invalid refresh token");
+        throw new CustomException(
+          StatusCodeEnum.Unauthorized_401,
+          "Invalid refresh token"
+        );
       }
       throw error;
     }
-  };  
+  };
 
   /**
    * Logs in a user and generates an access token.
@@ -102,10 +121,11 @@ class AuthService {
    * @param password - The user's password.
    * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
    */
-  login = async (email: string, password: string): Promise<{ accessToken: string; refreshToken: string }> => {
+  login = async (email: string, password: string, middleware: ISession): Promise<{ accessToken: string; refreshToken: string }> => {
     try {
-      const user = await this.userRepository.getUserByEmail(email);
+      const user: IUser | null = await this.userRepository.getUserByEmail(email);
 
+      // Validate credentials
       if (!user) {
         throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
       }
@@ -116,10 +136,24 @@ class AuthService {
         throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
       }
 
+      // Create session
+      const sessionData = {
+        userId: user._id as Schema.Types.ObjectId,
+        userAgent: middleware.userAgent,
+        ipAddress: middleware.ipAddress,
+        browser: middleware.browser,
+        device: middleware.device,
+        os: middleware.os,
+      };
+      const sessionResult = await this.sessionService.createSession(sessionData);
+
+      // Generate access token
       const timestamp = new Date().toISOString();
       const payload = { 
+        sessionId: sessionResult._id,
         userId: user._id, 
-        email: user.email,
+        name: user.name,
+        role: user.role,
         timestamp,
       };
       const accessToken = this.generateAccessToken(payload);
