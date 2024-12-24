@@ -65,9 +65,9 @@ const userModelSchema = new Schema<IUser>(
       type: String,
       default: "",
     },
-    passwordResetToken: {
-      type: String,
-      default: "",
+    resetPasswordPin: {
+      value: { type: String },
+      expiresAt: { type: Date },
     },
     ...baseModelSchema.obj,
   },

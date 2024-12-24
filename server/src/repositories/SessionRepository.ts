@@ -11,7 +11,7 @@ class SessionRepository {
    * @throws Error when the creation fails.
    */
   async createSession(
-    sessionData: Object,
+    sessionData: Partial<ISession>,
     session?: mongoose.ClientSession
   ): Promise<ISession> {
     try {
@@ -101,13 +101,14 @@ class SessionRepository {
    */
   async updateSession(
     sessionId: string,
-    sessionData: Object,
+    sessionData: Partial<ISession>,
     session?: mongoose.ClientSession
   ): Promise<boolean> {
     try {
       const result = await SessionModel.findByIdAndUpdate(
         { sessionId },
-        sessionData
+        sessionData,
+        { session }
       );
 
       return !!result;

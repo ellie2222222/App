@@ -29,7 +29,7 @@ class AuthService {
    * @param attributes - The payload attributes to include in the token.
    * @returns The signed JWT as a string.
    */
-  generateAccessToken = (attributes: Object): string => {
+  private generateAccessToken = (attributes: Object): string => {
     try {
       const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET!;
       const accessTokenExpiration: string = process.env.ACCESS_TOKEN_EXPIRATION!;
@@ -48,7 +48,7 @@ class AuthService {
    * @param attributes - The payload attributes to include in the token.
    * @returns The signed JWT as a string.
    */
-  generateRefreshToken = (attributes: Object): string => {
+  private generateRefreshToken = (attributes: Object): string => {
     try {
       const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET!;
       const refreshTokenExpiration: string = process.env.REFRESH_TOKEN_EXPIRATION!;
@@ -86,8 +86,9 @@ class AuthService {
 
         const timestamp = new Date().toISOString();
         const newPayload = {
-          userId: user._id,
+          userId: user._id, 
           name: user.name,
+          email: user.email,
           role: user.role,
           timestamp,
         };
@@ -113,7 +114,7 @@ class AuthService {
       throw error;
     }
   };
-
+  
   /**
    * Logs in a user and generates an access token.
    *
@@ -121,47 +122,49 @@ class AuthService {
    * @param password - The user's password.
    * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
    */
-  login = async (email: string, password: string, middleware: ISession): Promise<{ accessToken: string; refreshToken: string }> => {
+  login = async (email: string, password: string, sessionData: Partial<ISession>): Promise<{ accessToken: string; refreshToken: string, sessionId: string }> => {
     try {
       const user: IUser | null = await this.userRepository.getUserByEmail(email);
 
       // Validate credentials
       if (!user) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect email or password");
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
 
       if (!user || !isPasswordValid) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Invalid email or password");
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect email or password");
       }
 
       // Create session
-      const sessionData = {
+      const sessionDataCreation: Partial<ISession> = {
         userId: user._id as Schema.Types.ObjectId,
-        userAgent: middleware.userAgent,
-        ipAddress: middleware.ipAddress,
-        browser: middleware.browser,
-        device: middleware.device,
-        os: middleware.os,
+        userAgent: sessionData.userAgent,
+        ipAddress: sessionData.ipAddress,
+        browser: sessionData.browser,
+        device: sessionData.device,
+        os: sessionData.os,
       };
-      const sessionResult = await this.sessionService.createSession(sessionData);
+      const sessionResult = await this.sessionService.createSession(sessionDataCreation);
 
       // Generate access token
       const timestamp = new Date().toISOString();
       const payload = { 
-        sessionId: sessionResult._id,
         userId: user._id, 
         name: user.name,
+        email: user.email,
         role: user.role,
         timestamp,
       };
       const accessToken = this.generateAccessToken(payload);
       const refreshToken = this.generateRefreshToken(payload);
+      const sessionId = sessionResult._id?.toString() as string;
 
       return {
         accessToken,
         refreshToken,
+        sessionId,
       };
     } catch (error) {
       throw error;
@@ -195,6 +198,158 @@ class AuthService {
         password: hashedPassword,
       }, session);
 
+      await this.database.commitTransaction();
+    } catch (error) {
+      await this.database.abortTransaction();
+      throw error;
+    }
+  };
+
+  /**
+   * Generates a reset password PIN.
+   *
+   * @param userId - The user ID.
+   * @returns A void promise.
+   */
+  generateResetPasswordPin = async (userId: string): Promise<void> => {
+    const session = await this.database.startTransaction();
+    try {
+      const user = await this.userRepository.getUserById(userId);
+
+      if (!user) {
+        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+      }
+      
+      const pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const updateData: Partial<IUser> = {
+        resetPasswordPin: {
+          value: pin,
+          expiresAt: new Date(),
+        }
+      }
+      await this.userRepository.updateUserById(userId, updateData, session);
+
+      await this.database.commitTransaction();
+    } catch (error) { 
+      await this.database.abortTransaction();
+      throw error;
+    }
+  };
+
+  /**
+   * Confirms a PIN.
+   *
+   * @param userId - The user ID.
+   * @param pin - The reset password PIN.
+   * @returns A void promise.
+   */
+  confirmResetPasswordPin = async (userId: string, pin: string): Promise<void> => {
+    try {
+      // Validate user ID
+      const user = await this.userRepository.getUserById(userId);
+
+      if (!user) {
+        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+      }
+      
+      if (user.resetPasswordPin.value !== pin) {
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect reset password PIN");
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Changes a password.
+   *
+   * @param userId - The user ID.
+   * @param oldPassword - The user's old password.
+   * @param newPassword - The user's new password.
+   * @returns A void promise.
+   */
+  resetPassword = async (userId: string, pin: string, newPassword: string): Promise<void> => {
+    const session = await this.database.startTransaction();
+    try {
+      // Validate user ID
+      const user = await this.userRepository.getUserById(userId);
+
+      if (!user) {
+        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+      }
+
+      if (user.resetPasswordPin.value !== pin) {
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect reset password PIN");
+      }
+
+      // Update new password
+      const saltRounds = 10;
+      const salt = await bcrypt.genSalt(saltRounds);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      const updatePasswordData: Partial<IUser> = {
+        password: hashedPassword,
+      };
+
+      await this.userRepository.updateUserById(
+        userId,
+        updatePasswordData,
+        session
+      );
+
+      // Clears password reset PIN
+      const updatePinData: Partial<IUser> = {
+        resetPasswordPin: {
+          value: null,
+          expiresAt: null,
+        }
+      }
+      await this.userRepository.updateUserById(userId, updatePinData, session);
+      
+      await this.database.commitTransaction();
+    } catch (error) {
+      await this.database.abortTransaction();
+      throw error;
+    }
+  };
+
+  /**
+   * Changes a password.
+   *
+   * @param userId - The user ID.
+   * @param oldPassword - The user's old password.
+   * @param newPassword - The user's new password.
+   * @returns A void promise.
+   */
+  changePassword = async (userId: string, oldPassword: string, newPassword: string): Promise<void> => {
+    const session = await this.database.startTransaction();
+    try {
+      const user = await this.userRepository.getUserById(userId);
+
+      if (!user) {
+        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+      }
+      
+      const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+
+      if (!isPasswordValid) {
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect password");
+      }
+
+      const saltRounds = 10;
+      const salt = await bcrypt.genSalt(saltRounds);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      const updateData: Partial<IUser> = {
+        password: hashedPassword,
+      };
+
+      await this.userRepository.updateUserById(
+        userId,
+        updateData,
+        session
+      );
+      
       await this.database.commitTransaction();
     } catch (error) {
       await this.database.abortTransaction();

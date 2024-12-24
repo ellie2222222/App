@@ -97,7 +97,8 @@ class UserRepository {
    */
   async updateUserById(
     userId: string,
-    data: Partial<IUser>
+    data: Partial<IUser>,
+    session?: mongoose.ClientSession
   ): Promise<IUser | null> {
     try {
       data = {
@@ -105,11 +106,7 @@ class UserRepository {
         updatedAt: new Date(),
       };
 
-      const user = await UserModel.findByIdAndUpdate(userId, data, {
-        new: true,
-        select:
-          "email fullName nickName avatar phoneNumber createdAt lastLogin",
-      });
+      const user = await UserModel.findByIdAndUpdate(userId, data, { session });
 
       return user;
     } catch (error: any) {

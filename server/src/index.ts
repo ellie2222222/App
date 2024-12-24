@@ -10,6 +10,8 @@ import limiter from "./middlewares/rateLimiter";
 import socket from "./socket/socket";
 import authRoutes from "./routes/AuthRoute";
 import ErrorLogMiddleware from "./middlewares/ErrorLogMiddleware";
+import AuthMiddleware from "./middlewares/AuthMiddleware";
+import SessionMiddleware from "./middlewares/SessionMiddleware";
 
 process.env.TZ = "Asia/Ho_Chi_Minh";
 
@@ -63,6 +65,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Routers
+app.use(SessionMiddleware);
+app.use(AuthMiddleware);
 app.use("/api/auth", authRoutes);
 
 app.use(ErrorLogMiddleware);

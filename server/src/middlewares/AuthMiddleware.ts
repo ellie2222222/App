@@ -6,12 +6,13 @@ import publicRoutes from "../routes/PublicRoute";
 import getLogger from "../utils/logger";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
 import { UAParser } from "ua-parser-js";
+import geoIp from "geoip-lite";
 
 const logger = getLogger("AUTHENTICATION");
 
 interface JwtPayload {
   userId: string;
-  ip: string;
+  email: string;
 }
 
 const isPublicRoute = (path: string, method: string): boolean => {
@@ -31,40 +32,6 @@ const AuthMiddleware = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Attach information to req for further process
-  const ipAddress =
-    typeof req.headers["x-forwarded-for"] === "string"
-      ? req.headers["x-forwarded-for"].split(",")[0]
-      : req.socket.remoteAddress;
-  const userAgent: string = req.headers["user-agent"]!;
-
-  const parser = new UAParser();
-  const parsedDevice = parser.setUA(userAgent).getResult();
-
-  const userAgentData = parsedDevice.ua;
-  const browserData = {
-    name: parsedDevice.browser.name || "Unknown",
-    version: parsedDevice.browser.version || "Unknown",
-  };
-  const osData = {
-    name: parsedDevice.os.name || "Unknown",
-    version: parsedDevice.os.version || "Unknown",
-  };
-  const deviceData = {
-    type: parsedDevice.device.type || "Unknown",
-    model: parsedDevice.device.model || "Unknown",
-    vendor: parsedDevice.device.vendor || "Unknown",
-  };
-
-  req.body.middleware = {
-    ...req.body.middleware,
-    ipAddress,
-    userAgent: userAgentData,
-    browser: browserData,
-    os: osData,
-    device: deviceData,
-  };
-
   // Handle public route
   const isPublic = isPublicRoute(req.originalUrl, req.method);
   const { authorization } = req.headers;
@@ -78,7 +45,10 @@ const AuthMiddleware = async (
       ) as JwtPayload;
 
       if (mongoose.Types.ObjectId.isValid(userId)) {
-        req.body.middleware.userId = userId;
+        req.user = {
+          ...req.user,
+          userId 
+        };
         logger.info(`Valid token for User ID: ${userId}`);
       } else {
         logger.warn("Invalid user ID in token.");
@@ -106,7 +76,7 @@ const AuthMiddleware = async (
     const token = authorization.split(" ")[1];
 
     try {
-      const { userId } = jwt.verify(
+      const { userId, email } = jwt.verify(
         token,
         process.env.ACCESS_TOKEN_SECRET!
       ) as JwtPayload;
@@ -118,9 +88,10 @@ const AuthMiddleware = async (
       }
 
       // Attach information to req for further process
-      req.body.middleware = {
-        ...req.body.middleware,
+      req.user = {
+        ...req.user,
         userId,
+        email,
       };
 
       next();

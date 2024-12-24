@@ -8,8 +8,6 @@ const authController: AuthController = new AuthController();
 
 const authRoutes = express.Router();
 
-authRoutes.use(AuthMiddleware);
-
 authRoutes.post("/login", loginHandler, authController.login);
 
 authRoutes.post("/signup", signupHandler, authController.signup);

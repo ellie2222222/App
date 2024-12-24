@@ -14,7 +14,10 @@ export interface IUser extends Document {
   isActive: boolean;
   isVerified: boolean;
   verifyToken: string;
-  passwordResetToken: string;
+  resetPasswordPin: {
+    value: string | null;
+    expiresAt: Date | null;
+  };
   isDeleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;

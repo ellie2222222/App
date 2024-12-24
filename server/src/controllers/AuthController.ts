@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import AuthService from "../services/AuthService";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
 import ms from "ms";
+import { ISession } from "../models/interfaces/Session/ISession";
 
 class AuthController {
   private authService: AuthService;
@@ -16,10 +17,11 @@ class AuthController {
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email, password } = req.body;
-      const middlewareData = req.body.middleware;
+      const sessionData: Partial<ISession> = req.user;
 
-      const { accessToken, refreshToken } = await this.authService.login(email, password, middlewareData);
+      const { accessToken, refreshToken, sessionId } = await this.authService.login(email, password, sessionData);
 
+      // Set Refresh Token in cookies
       const REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION!;
       const refreshTokenMaxAge = ms(REFRESH_TOKEN_EXPIRATION);
       res.cookie("refreshToken", refreshToken, {
@@ -27,6 +29,14 @@ class AuthController {
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
         maxAge: refreshTokenMaxAge,
+      });
+      
+      // Set session ID in cookies
+      res.cookie("sessionId", sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
       res.status(StatusCodeEnum.OK_200).json({
@@ -71,6 +81,94 @@ class AuthController {
         data: { 
           accessToken: newAccessToken
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handles resetting password
+   */
+  generateResetPasswordPin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { userId } = req.user;
+
+      await this.authService.generateResetPasswordPin(userId);
+
+      res.status(StatusCodeEnum.OK_200).json({
+        message: "Success"
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handles confirming reset password PIN
+   */
+  confirmResetPasswordPin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { pin } = req.body;
+      const { userId } = req.user;
+
+      await this.authService.confirmResetPasswordPin(userId, pin);
+
+      res.status(StatusCodeEnum.OK_200).json({
+        message: "Success"
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handles resetting password
+   */
+  resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { pin, newPassword } = req.body;
+      const { userId } = req.user;
+
+      await this.authService.resetPassword(userId, pin, newPassword);
+
+      res.status(StatusCodeEnum.OK_200).json({
+        message: "Success"
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handles changing password
+   */
+  changePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { oldPassword, newPassword } = req.body;
+      const { userId } = req.user;
+
+      await this.authService.changePassword(userId, oldPassword, newPassword);
+
+      res.status(StatusCodeEnum.OK_200).json({
+        message: "Success"
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handles verifying email
+   */
+  verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { email } = req.user;
+
+      // await this.authService.verifyEmail(email);
+
+      res.status(StatusCodeEnum.OK_200).json({
+        message: "Success"
       });
     } catch (error) {
       next(error);

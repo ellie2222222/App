@@ -19,7 +19,7 @@ class SessionService {
    * @param sessionData - The session details.
    * @returns The created session document.
    */
-  async createSession(sessionData: Object): Promise<ISession> {
+  async createSession(sessionData: Partial<ISession>): Promise<ISession> {
     const session = await this.database.startTransaction();
 
     try {
