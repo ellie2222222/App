@@ -9,6 +9,7 @@ import SessionService from "./SessionService";
 import { ISession } from "../models/interfaces/Session/ISession";
 import { IUser } from "../models/interfaces/User/IUser";
 import { Schema } from "mongoose";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -32,7 +33,8 @@ class AuthService {
   private generateAccessToken = (attributes: Object): string => {
     try {
       const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET!;
-      const accessTokenExpiration: string = process.env.ACCESS_TOKEN_EXPIRATION!;
+      const accessTokenExpiration: string =
+        process.env.ACCESS_TOKEN_EXPIRATION!;
 
       return jwt.sign(attributes, accessTokenSecret, {
         expiresIn: accessTokenExpiration,
@@ -51,7 +53,8 @@ class AuthService {
   private generateRefreshToken = (attributes: Object): string => {
     try {
       const refreshTokenSecret: string = process.env.REFRESH_TOKEN_SECRET!;
-      const refreshTokenExpiration: string = process.env.REFRESH_TOKEN_EXPIRATION!;
+      const refreshTokenExpiration: string =
+        process.env.REFRESH_TOKEN_EXPIRATION!;
 
       return jwt.sign(attributes, refreshTokenSecret, {
         expiresIn: refreshTokenExpiration,
@@ -86,7 +89,7 @@ class AuthService {
 
         const timestamp = new Date().toISOString();
         const newPayload = {
-          userId: user._id, 
+          userId: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -114,7 +117,7 @@ class AuthService {
       throw error;
     }
   };
-  
+
   /**
    * Logs in a user and generates an access token.
    *
@@ -122,19 +125,35 @@ class AuthService {
    * @param password - The user's password.
    * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
    */
-  login = async (email: string, password: string, sessionData: Partial<ISession>): Promise<{ accessToken: string; refreshToken: string, sessionId: string }> => {
+  login = async (
+    email: string,
+    password: string,
+    sessionData: Partial<ISession>
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    sessionId: string;
+  }> => {
     try {
-      const user: IUser | null = await this.userRepository.getUserByEmail(email);
+      const user: IUser | null = await this.userRepository.getUserByEmail(
+        email
+      );
 
       // Validate credentials
       if (!user) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect email or password");
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Incorrect email or password"
+        );
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
 
       if (!user || !isPasswordValid) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect email or password");
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Incorrect email or password"
+        );
       }
 
       // Create session
@@ -146,12 +165,14 @@ class AuthService {
         device: sessionData.device,
         os: sessionData.os,
       };
-      const sessionResult = await this.sessionService.createSession(sessionDataCreation);
+      const sessionResult = await this.sessionService.createSession(
+        sessionDataCreation
+      );
 
       // Generate access token
       const timestamp = new Date().toISOString();
-      const payload = { 
-        userId: user._id, 
+      const payload = {
+        userId: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -179,24 +200,34 @@ class AuthService {
    * @param password - The user's password.
    * @returns A promise that resolves to the JWT if credentials are valid, or throws an error.
    */
-  signup = async (name: string, email: string, password: string): Promise<void> => {
+  signup = async (
+    name: string,
+    email: string,
+    password: string
+  ): Promise<void> => {
     const session = await this.database.startTransaction();
     try {
       const existingUser = await this.userRepository.getUserByEmail(email);
 
       if (existingUser) {
-        throw new CustomException(StatusCodeEnum.Conflict_409, "Email already exists");
+        throw new CustomException(
+          StatusCodeEnum.Conflict_409,
+          "Email already exists"
+        );
       }
 
       const saltRounds = 10;
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      await this.userRepository.createUser({
-        name,
-        email,
-        password: hashedPassword,
-      }, session);
+      await this.userRepository.createUser(
+        {
+          name,
+          email,
+          password: hashedPassword,
+        },
+        session
+      );
 
       await this.database.commitTransaction();
     } catch (error) {
@@ -217,20 +248,23 @@ class AuthService {
       const user = await this.userRepository.getUserById(userId);
 
       if (!user) {
-        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+        throw new CustomException(
+          StatusCodeEnum.NotFound_404,
+          "User not found"
+        );
       }
-      
+
       const pin = Math.floor(100000 + Math.random() * 900000).toString();
       const updateData: Partial<IUser> = {
         resetPasswordPin: {
           value: pin,
           expiresAt: new Date(),
-        }
-      }
+        },
+      };
       await this.userRepository.updateUserById(userId, updateData, session);
 
       await this.database.commitTransaction();
-    } catch (error) { 
+    } catch (error) {
       await this.database.abortTransaction();
       throw error;
     }
@@ -243,17 +277,26 @@ class AuthService {
    * @param pin - The reset password PIN.
    * @returns A void promise.
    */
-  confirmResetPasswordPin = async (userId: string, pin: string): Promise<void> => {
+  confirmResetPasswordPin = async (
+    userId: string,
+    pin: string
+  ): Promise<void> => {
     try {
       // Validate user ID
       const user = await this.userRepository.getUserById(userId);
 
       if (!user) {
-        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+        throw new CustomException(
+          StatusCodeEnum.NotFound_404,
+          "User not found"
+        );
       }
-      
+
       if (user.resetPasswordPin.value !== pin) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect reset password PIN");
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Incorrect reset password PIN"
+        );
       }
     } catch (error) {
       throw error;
@@ -268,18 +311,28 @@ class AuthService {
    * @param newPassword - The user's new password.
    * @returns A void promise.
    */
-  resetPassword = async (userId: string, pin: string, newPassword: string): Promise<void> => {
+  resetPassword = async (
+    userId: string,
+    pin: string,
+    newPassword: string
+  ): Promise<void> => {
     const session = await this.database.startTransaction();
     try {
       // Validate user ID
       const user = await this.userRepository.getUserById(userId);
 
       if (!user) {
-        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+        throw new CustomException(
+          StatusCodeEnum.NotFound_404,
+          "User not found"
+        );
       }
 
       if (user.resetPasswordPin.value !== pin) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect reset password PIN");
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Incorrect reset password PIN"
+        );
       }
 
       // Update new password
@@ -302,10 +355,10 @@ class AuthService {
         resetPasswordPin: {
           value: null,
           expiresAt: null,
-        }
-      }
+        },
+      };
       await this.userRepository.updateUserById(userId, updatePinData, session);
-      
+
       await this.database.commitTransaction();
     } catch (error) {
       await this.database.abortTransaction();
@@ -321,19 +374,29 @@ class AuthService {
    * @param newPassword - The user's new password.
    * @returns A void promise.
    */
-  changePassword = async (userId: string, oldPassword: string, newPassword: string): Promise<void> => {
+  changePassword = async (
+    userId: string,
+    oldPassword: string,
+    newPassword: string
+  ): Promise<void> => {
     const session = await this.database.startTransaction();
     try {
       const user = await this.userRepository.getUserById(userId);
 
       if (!user) {
-        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found");
+        throw new CustomException(
+          StatusCodeEnum.NotFound_404,
+          "User not found"
+        );
       }
-      
+
       const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
 
       if (!isPasswordValid) {
-        throw new CustomException(StatusCodeEnum.BadRequest_400, "Incorrect password");
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Incorrect password"
+        );
       }
 
       const saltRounds = 10;
@@ -344,15 +407,91 @@ class AuthService {
         password: hashedPassword,
       };
 
-      await this.userRepository.updateUserById(
-        userId,
-        updateData,
-        session
-      );
-      
+      await this.userRepository.updateUserById(userId, updateData, session);
+
       await this.database.commitTransaction();
     } catch (error) {
       await this.database.abortTransaction();
+      throw error;
+    }
+  };
+
+  /**
+   * Sends a verification email to the user.
+   * @param email - The user's email address.
+   * @returns A void promise.
+   */
+  sendVerificationEmail = async (email: string): Promise<void> => {
+    try {
+      const user = await this.userRepository.getUserByEmail(email);
+
+      if (!user) {
+        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found.");
+      }
+
+      const token = jwt.sign(
+        { userId: user._id },
+        process.env.EMAIL_TOKEN_SECRET!,
+        {
+          expiresIn: "1h",
+        }
+      );
+
+      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD,
+        },
+      });
+
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "Email Verification",
+        html: `<p>Click the link below to verify your email:</p>
+              <a href="${verificationUrl}">${verificationUrl}</a>`,
+      };
+
+      await transporter.sendMail(mailOptions);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Verifies the user's email using the token.
+   * @param token - The JWT token from the verification email.
+   * @returns A void promise.
+   */
+  verifyEmail = async (token: string): Promise<void> => {
+    const session = await this.database.startTransaction();
+    try {
+      const payload: any = jwt.verify(token, process.env.EMAIL_TOKEN_SECRET!);
+
+      const user = await this.userRepository.getUserById(payload.userId);
+
+      if (!user) {
+        throw new CustomException(StatusCodeEnum.NotFound_404, "User not found.");
+      }
+
+      if (user.isVerified) {
+        throw new CustomException(StatusCodeEnum.BadRequest_400, "Email already verified.");
+      }
+
+      await this.userRepository.updateUserById(user._id as string, { isVerified: true }, session);
+
+      await this.database.commitTransaction();
+    } catch (error: any) {
+      await this.database.abortTransaction();
+      if (error.name === "TokenExpiredError") {
+        throw new CustomException(StatusCodeEnum.Unauthorized_401, "Email verification token expired.");
+      }
+      if (error.name === "JsonWebTokenError") {
+        throw new CustomException(StatusCodeEnum.Unauthorized_401, "Invalid email verification token.");
+      }
       throw error;
     }
   };

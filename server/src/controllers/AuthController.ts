@@ -163,14 +163,29 @@ class AuthController {
    */
   verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { email } = req.user;
+      const { token } = req.body;
 
-      // await this.authService.verifyEmail(email);
+      await this.authService.verifyEmail(token);
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Success"
       });
     } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handles sending verification email
+   */
+  sendVerificationEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { email } = req.user;
+
+      await this.authService.sendVerificationEmail(email);
+
+      res.status(200).json({ message: "Success" });
+    } catch (error: any) {
       next(error);
     }
   };
