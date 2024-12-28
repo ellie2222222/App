@@ -14,6 +14,18 @@ authRoutes.post("/signup", signupHandler, authController.signup);
 
 authRoutes.post("/renew-access-token", authController.renewAccessToken);
 
+authRoutes.post("/verify-email", authController.verifyEmail);
+
+authRoutes.post("/send-verification-email", authController.sendVerificationEmail);
+
+authRoutes.post("/reset-password", authController.resetPassword);
+
+authRoutes.post("/change-password", authController.changePassword);
+
+authRoutes.get("/reset-password-pin", authController.sendResetPasswordPin);
+
+authRoutes.post("/confirm-reset-password-pin", authController.confirmResetPasswordPin);
+
 authRoutes.get("/test", () => {});
 
 export default authRoutes;

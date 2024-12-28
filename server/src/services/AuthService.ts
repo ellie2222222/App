@@ -242,7 +242,7 @@ class AuthService {
    * @param userId - The user ID.
    * @returns A void promise.
    */
-  generateResetPasswordPin = async (userId: string): Promise<void> => {
+  sendResetPasswordPin = async (userId: string): Promise<void> => {
     const session = await this.database.startTransaction();
     try {
       const user = await this.userRepository.getUserById(userId);
@@ -258,10 +258,27 @@ class AuthService {
       const updateData: Partial<IUser> = {
         resetPasswordPin: {
           value: pin,
-          expiresAt: new Date(),
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
         },
       };
       await this.userRepository.updateUserById(userId, updateData, session);
+
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD,
+        },
+      });
+
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Email Verification",
+        html: `<p>Reset Password PIN: ${pin}</p>`,
+      };
+
+      await transporter.sendMail(mailOptions);
 
       await this.database.commitTransaction();
     } catch (error) {
@@ -281,6 +298,7 @@ class AuthService {
     userId: string,
     pin: string
   ): Promise<void> => {
+    const session = await this.database.startTransaction();
     try {
       // Validate user ID
       const user = await this.userRepository.getUserById(userId);
@@ -292,13 +310,32 @@ class AuthService {
         );
       }
 
+      if (user.resetPasswordPin.expiresAt!== null && user.resetPasswordPin.expiresAt < new Date()) {
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Reset password PIN expired"
+        );
+      }
+
       if (user.resetPasswordPin.value !== pin) {
         throw new CustomException(
           StatusCodeEnum.BadRequest_400,
           "Incorrect reset password PIN"
         );
       }
+
+      const updateData: Partial<IUser> = {
+        isVerified: true,
+        resetPasswordPin: {
+          value: null,
+          expiresAt: null,
+        },
+      };
+      await this.userRepository.updateUserById(userId, updateData, session);
+      
+      await this.database.commitTransaction();
     } catch (error) {
+      await this.database.abortTransaction();
       throw error;
     }
   };

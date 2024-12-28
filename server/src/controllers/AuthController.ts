@@ -90,11 +90,11 @@ class AuthController {
   /**
    * Handles resetting password
    */
-  generateResetPasswordPin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  sendResetPasswordPin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { userId } = req.user;
 
-      await this.authService.generateResetPasswordPin(userId);
+      await this.authService.sendResetPasswordPin(userId);
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Success"
