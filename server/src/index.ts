@@ -12,6 +12,8 @@ import authRoutes from "./routes/AuthRoute";
 import ErrorLogMiddleware from "./middlewares/ErrorLogMiddleware";
 import AuthMiddleware from "./middlewares/AuthMiddleware";
 import SessionMiddleware from "./middlewares/SessionMiddleware";
+import CSRFMiddleware from "./middlewares/CSRFMiddleware";
+import securityHeaders from "./middlewares/SecurityHeaders";
 
 process.env.TZ = "Asia/Ho_Chi_Minh";
 
@@ -42,6 +44,12 @@ app.use("/", express.static(__dirname));
 
 // Rate limiter middleware
 app.use(limiter(15, 100000));
+
+// Apply security headers middleware globally
+app.use(securityHeaders);
+
+// CSRF middleware to ensure CSRF protection
+app.use(CSRFMiddleware);
 
 app.use(express.json());
 app.use(cookieParser());
