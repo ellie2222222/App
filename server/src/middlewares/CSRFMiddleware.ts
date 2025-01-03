@@ -41,7 +41,7 @@ const CSRFMiddleware = (req: Request, res: Response, next: NextFunction): void =
   // 2. For POST, PUT, and DELETE requests, verify the CSRF token
   if (["POST", "PUT", "DELETE"].includes(req.method)) {
     const csrfTokenClient = req.headers["x-csrf-token"] as string | undefined; // Token from the client request
-    const csrfTokenServer = req.cookies["csrf_token"]; // Hashed token from server-side cookie
+    const csrfTokenServer = req.cookies ? req.cookies["csrf_token"] : null; // Hashed token from server-side cookie
 
     if (!csrfTokenClient || !csrfTokenServer) {
       res.status(403).json({ error: "Missing CSRF token" });

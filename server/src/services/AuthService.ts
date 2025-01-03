@@ -237,7 +237,7 @@ class AuthService {
   };
 
   /**
-   * Generates a reset password PIN.
+   * Generates and send a reset password PIN.
    *
    * @param userId - The user ID.
    * @returns A void promise.
@@ -254,15 +254,21 @@ class AuthService {
         );
       }
 
+      // Hash and store PIN
       const pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const saltRounds = 10;
+      const salt = await bcrypt.genSalt(saltRounds);
+      const hashedPin = await bcrypt.hash(pin, salt);
       const updateData: Partial<IUser> = {
         resetPasswordPin: {
-          value: pin,
+          isVerified: false,
+          value: hashedPin,
           expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
         },
       };
       await this.userRepository.updateUserById(userId, updateData, session);
 
+      // Send email containing PIN
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
@@ -310,28 +316,36 @@ class AuthService {
         );
       }
 
-      if (user.resetPasswordPin.expiresAt!== null && user.resetPasswordPin.expiresAt < new Date()) {
+      if (!user.resetPasswordPin || !user.resetPasswordPin.value) {
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Invalid reset password PIN"
+        );
+      }
+
+      const isPinValid = await bcrypt.compare(pin, user.resetPasswordPin.value);
+      if (!isPinValid) {
+        throw new CustomException(
+          StatusCodeEnum.BadRequest_400,
+          "Invalid reset password PIN"
+        );
+      }
+
+      if (!user.resetPasswordPin.expiresAt || user.resetPasswordPin.expiresAt < new Date()) {
         throw new CustomException(
           StatusCodeEnum.BadRequest_400,
           "Reset password PIN expired"
         );
       }
 
-      if (user.resetPasswordPin.value !== pin) {
-        throw new CustomException(
-          StatusCodeEnum.BadRequest_400,
-          "Incorrect reset password PIN"
-        );
-      }
-
-      const updateData: Partial<IUser> = {
-        isVerified: true,
+      // Change verify flag to true
+      const updatePinData: Partial<IUser> = {
         resetPasswordPin: {
-          value: null,
-          expiresAt: null,
+          ...user.resetPasswordPin,
+          isVerified: true,
         },
       };
-      await this.userRepository.updateUserById(userId, updateData, session);
+      await this.userRepository.updateUserById(userId, updatePinData, session);
       
       await this.database.commitTransaction();
     } catch (error) {
@@ -341,7 +355,7 @@ class AuthService {
   };
 
   /**
-   * Changes a password.
+   * Reset a password.
    *
    * @param userId - The user ID.
    * @param oldPassword - The user's old password.
@@ -350,7 +364,6 @@ class AuthService {
    */
   resetPassword = async (
     userId: string,
-    pin: string,
     newPassword: string
   ): Promise<void> => {
     const session = await this.database.startTransaction();
@@ -365,31 +378,23 @@ class AuthService {
         );
       }
 
-      if (user.resetPasswordPin.value !== pin) {
+      if (user.resetPasswordPin.isVerified !== true) {
         throw new CustomException(
           StatusCodeEnum.BadRequest_400,
-          "Incorrect reset password PIN"
+          "Reset password PIN is not verified"
         );
       }
 
-      // Update new password
+      // Hash new password
       const saltRounds = 10;
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-      const updatePasswordData: Partial<IUser> = {
-        password: hashedPassword,
-      };
-
-      await this.userRepository.updateUserById(
-        userId,
-        updatePasswordData,
-        session
-      );
-
-      // Clears password reset PIN
+      // Clear password reset PIN and update password
       const updatePinData: Partial<IUser> = {
+        password: hashedPassword,
         resetPasswordPin: {
+          isVerified: false,
           value: null,
           expiresAt: null,
         },
@@ -404,7 +409,7 @@ class AuthService {
   };
 
   /**
-   * Changes a password.
+   * Change a password.
    *
    * @param userId - The user ID.
    * @param oldPassword - The user's old password.

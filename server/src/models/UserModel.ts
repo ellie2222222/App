@@ -68,6 +68,7 @@ const userModelSchema = new Schema<IUser>(
     resetPasswordPin: {
       value: { type: String },
       expiresAt: { type: Date },
+      isVerified: { type: Boolean, default: false },
     },
     ...baseModelSchema.obj,
   },

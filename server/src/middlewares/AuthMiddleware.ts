@@ -5,9 +5,6 @@ import { match } from "path-to-regexp";
 import publicRoutes from "../routes/PublicRoute";
 import getLogger from "../utils/logger";
 import StatusCodeEnum from "../enums/StatusCodeEnum";
-import { UAParser } from "ua-parser-js";
-import geoIp from "geoip-lite";
-
 const logger = getLogger("AUTHENTICATION");
 
 interface JwtPayload {
@@ -100,10 +97,14 @@ const AuthMiddleware = async (
         res.status(StatusCodeEnum.Unauthorized_401).json({
           message: "Token expired. Please log in again.",
         });
+
+        return;
       } else if (error.name === "JsonWebTokenError") {
         res.status(StatusCodeEnum.Unauthorized_401).json({
           message: "Invalid token. Request is not authorized.",
         });
+
+        return;
       }
       res
         .status(StatusCodeEnum.InternalServerError_500)

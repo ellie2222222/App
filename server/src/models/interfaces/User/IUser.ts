@@ -17,6 +17,7 @@ export interface IUser extends Document {
   resetPasswordPin: {
     value: string | null;
     expiresAt: Date | null;
+    isVerified: boolean;
   };
   isDeleted?: boolean;
   createdAt?: Date;

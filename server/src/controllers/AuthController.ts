@@ -127,10 +127,10 @@ class AuthController {
    */
   resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { pin, newPassword } = req.body;
+      const { newPassword } = req.body;
       const { userId } = req.user;
 
-      await this.authService.resetPassword(userId, pin, newPassword);
+      await this.authService.resetPassword(userId, newPassword);
 
       res.status(StatusCodeEnum.OK_200).json({
         message: "Success"

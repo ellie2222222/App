@@ -49,7 +49,7 @@ app.use(limiter(15, 100000));
 app.use(securityHeaders);
 
 // CSRF middleware to ensure CSRF protection
-app.use(CSRFMiddleware);
+// app.use(CSRFMiddleware);
 
 app.use(express.json());
 app.use(cookieParser());
